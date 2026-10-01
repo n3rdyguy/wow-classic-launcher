@@ -151,6 +151,9 @@ namespace ForeverLauncher
                 changed = true;
             }
             if (!lines.Any(l => l.StartsWith("SET textLocale "))) { lines.Add("SET textLocale \"enUS\""); changed = true; }
+            // Con el FoV activo hace falta que el cliente ejecute el validador de cameraFov al arrancar (asi su pagina de
+            // codigo queda descifrada y FovPatcher la encuentra). Basta con que el CVar este en el .wtf; 90 es el valor normal.
+            if (Settings.FovEnabled && !lines.Any(l => l.StartsWith("SET cameraFov "))) { lines.Add("SET cameraFov \"90\""); changed = true; }
             if (changed)
             {
                 File.WriteAllLines(wtf, lines);
@@ -227,6 +230,15 @@ namespace ForeverLauncher
             Log("PID " + pid);
             Phase(PatchPhase.WaitingLogin);
 
+            // Campo de vision (Fov.cs): hilo propio, solo escribe en heap; obedece a la casilla de Opciones en caliente.
+            var fov = new FovPatcher(pid, Log, Say);
+            fov.Start();
+            try { StoreLoop(pid); }
+            finally { fov.Stop(); }
+        }
+
+        void StoreLoop(int pid)
+        {
             long store = 0;            // direccion del almacen vivo (0 = ninguno)
             bool everPatched = false, waitingSaid = false;
             while (!stopRequested)

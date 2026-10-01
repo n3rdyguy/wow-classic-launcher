@@ -98,6 +98,9 @@ namespace ForeverLauncher
         Tab tab = Tab.News;
         CheckBox addonsCheck;
         TextBlock addonsText;
+        CheckBox fovCheck;
+        Slider fovSlider;
+        TextBlock fovValue;
         bool addonsBusy;
         string addonsDoneFor;          // carpeta del juego ya sincronizada en esta sesion
         bool mustUpdate;               // status.json launcher.min > esta version: el boton grande pasa a ACTUALIZAR
@@ -133,6 +136,15 @@ namespace ForeverLauncher
             addonsCheck = Find<CheckBox>("AddonsCheck"); addonsText = Find<TextBlock>("AddonsText");
             addonsCheck.IsChecked = Settings.AddonsEnabled;
             addonsCheck.Click += (s, e) => { Settings.AddonsEnabled = addonsCheck.IsChecked == true; addonsDoneFor = null; SyncAddons(); };
+
+            // Campo de vision: la casilla y el deslizador guardan al momento; FovPatcher (si el juego esta abierto) los lee cada segundo.
+            fovCheck = Find<CheckBox>("FovCheck"); fovSlider = Find<Slider>("FovSlider"); fovValue = Find<TextBlock>("FovValue");
+            fovCheck.IsChecked = Settings.FovEnabled;
+            fovSlider.Value = Settings.FovDegrees;
+            fovSlider.IsEnabled = Settings.FovEnabled;
+            fovValue.Text = Settings.FovDegrees + "°";
+            fovCheck.Click += (s, e) => { Settings.FovEnabled = fovCheck.IsChecked == true; fovSlider.IsEnabled = Settings.FovEnabled; };
+            fovSlider.ValueChanged += (s, e) => { int d = (int)Math.Round(e.NewValue); Settings.FovDegrees = d; fovValue.Text = d + "°"; };
 
             Find<Image>("BgImage").Source = Img("panel.png");
             Find<Image>("LogoImage").Source = Img("logo.png");
@@ -221,6 +233,9 @@ namespace ForeverLauncher
             Find<TextBlock>("AddonsLabel").Text = L.Get("set.addons");
             Find<TextBlock>("AddonsCheckText").Text = L.Get("set.addonsauto");
             PaintAddons();
+            Find<TextBlock>("FovLabel").Text = L.Get("set.fov");
+            Find<TextBlock>("FovCheckText").Text = L.Get("set.fovcheck");
+            Find<TextBlock>("FovHint").Text = L.Get("set.fovhint");
             Find<Button>("MinButton").ToolTip = L.Get("ui.minimize");
             Find<Button>("CloseButton").ToolTip = L.Get("ui.close");
             Find<Button>("DiscordButton").ToolTip = L.Get("ui.discord");
@@ -708,6 +723,48 @@ namespace ForeverLauncher
                 }
                 catch { }
             }
+        }
+
+        // campo de vision: fov.txt con "on|off <grados>" (desactivado si no existe). Lo lee FovPatcher cada segundo.
+        static string FovFile
+        {
+            get { return Path.Combine(Path.GetDirectoryName(FilePath), "fov.txt"); }
+        }
+        static readonly object fovLock = new object();
+
+        static void ReadFov(out bool on, out int degrees)
+        {
+            on = false; degrees = FovPatcher.DefaultDegrees;
+            try
+            {
+                string[] parts = File.ReadAllText(FovFile).Trim().Split(' ');
+                on = parts[0] == "on";
+                int d;
+                if (parts.Length > 1 && int.TryParse(parts[1], out d)) degrees = Math.Max(FovPatcher.MinDegrees, Math.Min(FovPatcher.MaxDegrees, d));
+            }
+            catch { }
+        }
+
+        static void WriteFov(bool on, int degrees)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(FovFile));
+                File.WriteAllText(FovFile, (on ? "on " : "off ") + degrees);
+            }
+            catch { }
+        }
+
+        public static bool FovEnabled
+        {
+            get { lock (fovLock) { bool on; int d; ReadFov(out on, out d); return on; } }
+            set { lock (fovLock) { bool on; int d; ReadFov(out on, out d); WriteFov(value, d); } }
+        }
+
+        public static int FovDegrees
+        {
+            get { lock (fovLock) { bool on; int d; ReadFov(out on, out d); return d; } }
+            set { lock (fovLock) { bool on; int d; ReadFov(out on, out d); WriteFov(on, Math.Max(FovPatcher.MinDegrees, Math.Min(FovPatcher.MaxDegrees, value))); } }
         }
     }
 
