@@ -123,6 +123,38 @@ ver su vida y maná). Se desactiva en **Opciones → Addons del servidor**.
 - Nunca con el juego abierto: se reintenta al cerrarlo. Se instala en `_classic_beta_\Interface\AddOns\<nombre>`.
 - El workflow empaqueta cada carpeta de `addons/` en `<nombre>.zip` + `.sha256` en cada Release.
 
+## Campo de visión (FoV)
+
+El cliente limita el CVar `cameraFov` a 50..90 grados: cualquier otro valor lo devuelve a 90. En **Opciones → Campo de
+visión** se marca **Desbloquear** y se elige un valor con el deslizador (60..150). Se aplica al momento mientras el
+juego está abierto y se quita igual al desmarcar; se guarda en `%APPDATA%\ClassicForeverLauncher\fov.txt`.
+
+Cómo funciona ([`src/Fov.cs`](src/Fov.cs)): **nunca se modifica el código del cliente** (su anti-tamper comprueba el
+código y cierra el juego con un "Security Crash" si cambia). El launcher solo lee el código para localizar, por firma
+de bytes y sin depender de la build, el validador del CVar y la cámara, y escribe dos datos en el heap: el valor del
+CVar (float e int) y el fov en radianes del objeto cámara. Lo revisa cada segundo y lo reaplica tras una pantalla de
+carga. Con la opción activa escribe `SET cameraFov "90"` en `BetaSuspendedTest.wtf` para que el validador se ejecute
+al arrancar (su página de código viene cifrada y solo se descifra al ejecutarse).
+
+### Comandos en el juego
+
+Se escriben en el chat. `/console` y `/run` son comandos normales del cliente.
+
+| Qué | Comando | Nota |
+|---|---|---|
+| Ver el valor del CVar | `/run print(GetCVar("cameraFov"))` | Devuelve el **texto** del CVar. El launcher escribe el float y el int, no el texto, así que seguirá diciendo `90` aunque la cámara esté a 110. |
+| Ver el valor por defecto | `/run print(GetCVarDefault("cameraFov"))` | Siempre `90`. |
+| Poner un valor (sin launcher) | `/console cameraFov 80` | Solo acepta 50..90; fuera de ese rango vuelve a 90. |
+| Volver al valor normal | `/console cameraFov 90` | Si el launcher tiene la opción activa, la reaplica al segundo siguiente: desmárcala antes en Opciones. |
+| Suavizado del cambio de FoV | `/console cameraFoVSmoothSpeed 10` | CVar del cliente sin relación con el límite. |
+
+La forma fiable de saber qué FoV está usando la cámara es la propia imagen y la barra de estado del launcher
+("Campo de visión: 110°"), o la línea `fov:` en `_classic_beta_\Logs\launcher.log`: solo aparecen cuando el valor se
+ha verificado en memoria. El cliente no expone ninguna función Lua que lea el fov real de la cámara.
+
+La cámara exige 0 < fov < 180; el deslizador se queda en 60..150 porque por encima la imagen se deforma mucho en los
+bordes. En Linux ([`classic-forever-linux.py`](linux/classic-forever-linux.py)) esta opción todavía no existe.
+
 ## Estado del servidor
 
 La ventana muestra si el servidor está en línea de dos formas:
